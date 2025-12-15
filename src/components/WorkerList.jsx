@@ -7,13 +7,10 @@ import { FaPlus, FaSearch, FaFileDownload, FaFileUpload, FaEdit, FaTrash, FaFilt
 export default function WorkerList({ onNavigateWorker }) {
   const [workers, setWorkers] = useState([]);
   const [filteredWorkers, setFilteredWorkers] = useState([]);
-
   const [departments, setDepartments] = useState([]);
   const [exams, setExams] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDept, setFilterDept] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  
   const [showForm, setShowForm] = useState(false);
   const [editingWorker, setEditingWorker] = useState(null);
 
@@ -26,17 +23,11 @@ export default function WorkerList({ onNavigateWorker }) {
     setExams(e);
   };
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
   useEffect(() => {
     let result = workers;
-    
-    if (filterDept) {
-      result = result.filter(w => w.department_id == filterDept);
-    }
-
+    if (filterDept) result = result.filter(w => w.department_id == filterDept);
     if (searchTerm) {
       const lower = searchTerm.toLowerCase();
       result = result.filter(w => 
@@ -55,228 +46,130 @@ export default function WorkerList({ onNavigateWorker }) {
 
   const handleDelete = async (e, worker) => {
     e.stopPropagation();
-    if (window.confirm(`Êtes-vous sûr de vouloir supprimer ${worker.full_name} ? Cette action est irréversible.`)) {
-        await db.deleteWorker(worker.id);
-        loadData();
+    if (window.confirm(`Supprimer ${worker.full_name} ?`)) {
+      await db.deleteWorker(worker.id);
+      loadData();
     }
   };
 
-  const handleAddNew = () => {
-    setEditingWorker(null);
-    setShowForm(true);
+  const handleAddNew = () => { setEditingWorker(null); setShowForm(true); };
+
+  // Styles spécifiques "Cartoon" pour les inputs
+  const inputStyle = {
+    border: '3px solid black',
+    borderRadius: '12px',
+    padding: '0.8rem',
+    outline: 'none',
+    boxShadow: '4px 4px 0px rgba(0,0,0,0.1)',
+    transition: 'all 0.2s',
+    fontWeight: '600'
   };
 
-  const handleExport = async () => {
-    const json = await db.exportData();
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `medical_backup_${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-  };
-
-  const handleImport = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      const success = await db.importData(evt.target.result);
-      if (success) {
-        alert("Import réussi !");
-        loadData();
-      } else {
-        alert("Erreur lors de l'import.");
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  const getDeptName = (id) => {
-    const d = departments.find(x => x.id == id);
-    return d ? d.name : '-';
-  };
-
-  const getWorkerLastStatus = (workerId) => {
-    const workerExams = exams.filter(e => e.worker_id === workerId);
-    if (workerExams.length === 0) return null;
-    // Sort desc by exam date
+  // Badge status
+  const getStatusBadge = (id) => {
+    const workerExams = exams.filter(e => e.worker_id === id);
+    if (!workerExams.length) return <span className="status-pill" style={{background:'#eee', color:'#666'}}>Nouveau</span>;
     workerExams.sort((a, b) => new Date(b.exam_date) - new Date(a.exam_date));
-    // Find first one with a decision
-    const lastDecision = workerExams.find(e => e.decision?.status);
-    return lastDecision?.decision?.status;
+    const last = workerExams.find(e => e.decision?.status)?.decision?.status;
+    
+    if (last === 'apte') return <span className="status-pill" style={{background:'#a5f3fc', color:'#0891b2'}}>Apte</span>;
+    if (last === 'inapte') return <span className="status-pill" style={{background:'#fda4af', color:'#be123c'}}>Inapte</span>;
+    return <span className="status-pill" style={{background:'#fef3c7', color:'#b45309'}}>Partiel</span>;
   };
 
-  const renderStatusBadge = (status) => {
-      if (!status) return null;
-      let badgeClass = '';
-      let label = '';
-      switch(status) {
-          case 'apte': 
-            badgeClass = 'badge-green'; label = 'Apte'; break;
-          case 'inapte': 
-            badgeClass = 'badge-red'; label = 'Inapte'; break;
-          case 'apte_partielle': 
-            badgeClass = 'badge-yellow'; label = 'Apte Partiel'; break;
-          default: return null;
-      }
-      return <span className={`badge ${badgeClass}`} style={{marginLeft:'0.5rem', fontSize:'0.7rem'}}>{label}</span>;
-  };
+  const getAvatarUrl = (name) => `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}&backgroundColor=b6e3f4`;
 
   return (
     <div>
-      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.5rem'}}>
+      {/* HEADER + ACTIONS */}
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'end', marginBottom:'2rem', flexWrap:'wrap', gap:'1rem'}}>
         <div>
-           <h2 style={{marginBottom:0}}>Liste des Travailleurs</h2>
-           <p style={{margin:0, fontSize:'0.875rem'}}>Gérez vos effectifs et leurs examens.</p>
+           <h2 style={{fontSize:'2.5rem', marginBottom:'0.5rem'}}>L'Équipe 👥</h2>
+           <p style={{margin:0, fontWeight:500, color:'#666'}}>Gestion du personnel médical.</p>
         </div>
-        <div style={{display:'flex', gap:'0.75rem'}}>
-          <button className="btn btn-outline" onClick={handleExport} title="Exporter les données"><FaFileDownload /> Export</button>
-          <label className="btn btn-outline" title="Importer les données" style={{cursor:'pointer'}}>
-             <FaFileUpload /> Import
-             <input type="file" onChange={handleImport} style={{display:'none'}} accept=".json" />
-          </label>
-          <button className="btn btn-primary" onClick={handleAddNew}><FaPlus /> Nouveau</button>
+        <div style={{display:'flex', gap:'1rem'}}>
+          <button className="btn-yellow-action" style={{background:'white'}} onClick={() => {/* Export logic */}}><FaFileDownload /> Export</button>
+          <button className="btn-yellow-action" style={{background:'var(--primary)', color:'white'}} onClick={handleAddNew}><FaPlus /> AJOUTER</button>
         </div>
       </div>
 
-
-      <div className="card" style={{display:'flex', gap:'1rem', padding:'1rem', alignItems:'center', marginBottom:'1.5rem', flexWrap:'wrap'}}>
-        <div style={{flex:1, display:'flex', alignItems:'center', minWidth:'250px', position:'relative'}}>
-            <FaSearch style={{color:'var(--text-muted)', marginRight:'0.5rem', transition:'all 0.2s ease'}} />
-            <input 
-              style={{
-                border:'none', 
-                outline:'none', 
-                padding:'0.75rem', 
-                width:'100%', 
-                fontSize:'1rem', 
-                background:'transparent',
-                transition:'all 0.2s ease'
-              }} 
-              placeholder="Rechercher par nom ou matricule..." 
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              onFocus={(e) => {
-                e.target.style.backgroundColor = 'var(--primary-light)';
-                e.target.style.borderRadius = '8px';
-                e.target.style.transform = 'translate(-2px, -2px)';
-                e.target.style.boxShadow = '2px 2px 0px var(--border-color)';
-              }}
-              onBlur={(e) => {
-                e.target.style.backgroundColor = 'transparent';
-                e.target.style.transform = 'translate(0, 0)';
-                e.target.style.boxShadow = 'none';
-              }}
-            />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
-                style={{
-                  position:'absolute',
-                  right:'0.5rem',
-                  background:'none',
-                  border:'none',
-                  color:'var(--text-muted)',
-                  cursor:'pointer',
-                  padding:'0.25rem',
-                  borderRadius:'4px',
-                  transition:'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.backgroundColor = 'var(--danger-light)';
-                  e.target.style.color = 'var(--danger)';
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.backgroundColor = 'transparent';
-                  e.target.style.color = 'var(--text-muted)';
-                }}
-              >
-                ×
-              </button>
-            )}
+      {/* BARRE DE RECHERCHE & FILTRES */}
+      <div className="list-card" style={{padding:'1.5rem', marginBottom:'2rem', display:'flex', gap:'1rem', flexWrap:'wrap', alignItems:'center', background:'#FFecb3'}}>
+        <div style={{flex:1, minWidth:'250px'}}>
+           <input 
+             style={{...inputStyle, width:'100%', boxSizing:'border-box'}}
+             placeholder="🔍 Chercher un nom..."
+             value={searchTerm}
+             onChange={e => setSearchTerm(e.target.value)}
+           />
         </div>
-        <div style={{borderLeft:'1px solid var(--border-color)', height:'2rem', margin:'0 0.5rem'}}></div>
-        <div style={{display:'flex', alignItems:'center', gap:'0.5rem'}}>
-            <FaFilter style={{color:'var(--text-muted)'}} />
-            <select 
-                className="input" 
-                style={{padding:'0.75rem', width:'auto', minWidth:'150px', transition:'all 0.2s ease'}}
-                value={filterDept}
-                onChange={e => setFilterDept(e.target.value)}
-                onFocus={(e) => {
-                  e.target.style.transform = 'translate(-1px, -1px)';
-                  e.target.style.boxShadow = '2px 2px 0px var(--border-color)';
-                }}
-                onBlur={(e) => {
-                  e.target.style.transform = 'translate(0, 0)';
-                  e.target.style.boxShadow = 'none';
-                }}
-            >
-                <option value="">Tous les services</option>
-                {departments.map(d => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-            </select>
+        <div>
+           <select 
+             style={{...inputStyle, minWidth:'200px', cursor:'pointer'}}
+             value={filterDept}
+             onChange={e => setFilterDept(e.target.value)}
+           >
+             <option value="">🏢 Tous les services</option>
+             {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+           </select>
         </div>
-        {(searchTerm || filterDept) && (
-          <button 
-            className="btn btn-outline btn-sm"
-            onClick={() => {
-              setSearchTerm('');
-              setFilterDept('');
-            }}
-            style={{transition:'all 0.2s ease'}}
-          >
-            Effacer filtres
-          </button>
-        )}
       </div>
 
-      <div className="table-container">
+      {/* GRILLE / LISTE DES TRAVAILLEURS */}
+      <div className="list-card">
         <table>
           <thead>
             <tr>
-              <th>Nom</th>
-              <th>Matricule</th>
+              <th>Identité</th>
               <th>Service</th>
-              <th>Dernier Examen</th>
-              <th>Prochain Dû</th>
+              <th>Prochain RDV</th>
+              <th>Statut</th>
               <th style={{textAlign:'right'}}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {filteredWorkers.map(w => {
                const isOverdue = logic.isOverdue(w.next_exam_due);
-               const status = getWorkerLastStatus(w.id);
                return (
-
-
-                  <tr key={w.id} onClick={() => onNavigateWorker(w.id)} className={isOverdue ? 'overdue-worker-row' : ''} style={{cursor:'pointer'}}>
-                    <td style={{fontWeight:500}}>
-                        {w.full_name}
-                    </td>
-                    <td><span style={{fontFamily:'monospace', background:'var(--bg-app)', padding:'2px 6px', borderRadius:'4px'}}>{w.national_id}</span></td>
-                    <td>{getDeptName(w.department_id)}</td>
-                    <td>{w.last_exam_date ? logic.formatDate(new Date(w.last_exam_date)) : '-'}</td>
+                  <tr key={w.id} onClick={() => onNavigateWorker(w.id)} style={{cursor:'pointer'}}>
                     <td>
-                        {w.next_exam_due}
-                        {renderStatusBadge(status)}
-                        {isOverdue && <span className="badge badge-red" style={{marginLeft:'0.5rem', fontSize:'0.7rem'}}>Retard</span>}
+                        <div className="worker-info">
+                            <img src={getAvatarUrl(w.full_name)} className="avatar" alt="av" />
+                            <div>
+                                <div style={{fontWeight:'700'}}>{w.full_name}</div>
+                                <div style={{fontSize:'0.75rem', opacity:0.7}}>{w.national_id}</div>
+                            </div>
+                        </div>
                     </td>
+                    <td><span style={{fontWeight:600}}>{departments.find(d=>d.id == w.department_id)?.name || '-'}</span></td>
+                    <td>
+                        {isOverdue && <span style={{fontSize:'1.2rem', marginRight:'5px'}}>⏰</span>}
+                        <span style={{fontWeight: isOverdue ? 800 : 500, color: isOverdue ? 'red' : 'inherit'}}>
+                            {w.next_exam_due}
+                        </span>
+                    </td>
+                    <td>{getStatusBadge(w.id)}</td>
                     <td style={{textAlign:'right'}}>
-                      <button className="btn btn-outline btn-sm" onClick={(e) => handleEdit(e, w)} title="Modifier" style={{marginRight: '0.5rem'}}>
-                        <FaEdit />
+                      <button 
+                        onClick={(e) => handleEdit(e, w)} 
+                        style={{border:'none', background:'none', cursor:'pointer', fontSize:'1.2rem', marginRight:'10px'}}
+                        title="Modifier"
+                      >
+                        ✏️
                       </button>
-                      <button className="btn btn-outline btn-sm" onClick={(e) => handleDelete(e, w)} title="Supprimer" style={{color: 'var(--danger)', borderColor: 'var(--danger)'}}>
-                        <FaTrash />
+                      <button 
+                        onClick={(e) => handleDelete(e, w)} 
+                        style={{border:'none', background:'none', cursor:'pointer', fontSize:'1.2rem'}}
+                        title="Supprimer"
+                      >
+                        🗑️
                       </button>
                     </td>
                   </tr>
                );
             })}
             {filteredWorkers.length === 0 && (
-              <tr><td colSpan="6" style={{textAlign:'center', padding:'3rem', color:'var(--text-muted)'}}>Aucun travailleur trouvé.</td></tr>
+                <tr><td colSpan="5" style={{padding:'2rem', textAlign:'center', color:'#888'}}>Personne n'a été trouvé... 🌵</td></tr>
             )}
           </tbody>
         </table>
