@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { FaLock, FaCheck, FaTimes } from 'react-icons/fa';
 
 export default function PinLock({ onUnlock, correctPin = "0000" }) {
   const [pin, setPin] = useState("");
@@ -7,108 +6,63 @@ export default function PinLock({ onUnlock, correctPin = "0000" }) {
 
   useEffect(() => {
     if (pin.length === 4) {
-      if (pin === correctPin) {
-        onUnlock();
-      } else {
+      if (pin === correctPin) onUnlock();
+      else {
         setError(true);
-        setTimeout(() => {
-          setPin("");
-          setError(false);
-        }, 500);
+        setTimeout(() => { setPin(""); setError(false); }, 500);
       }
     }
-  }, [pin, correctPin, onUnlock]);
+  }, [pin]);
 
-  const handleDigit = (digit) => {
-    if (pin.length < 4) {
-      setPin(prev => prev + digit);
-      setError(false);
-    }
-  };
+  const handleDigit = (n) => { if(pin.length < 4) { setPin(p => p + n); setError(false); } };
 
-  const handleClear = () => {
-    setPin("");
-    setError(false);
-  };
-
-  const handleBackspace = () => {
-    setPin(prev => prev.slice(0, -1));
+  // Style des boutons du clavier
+  const btnStyle = {
+    width: '70px', height: '70px', borderRadius: '50%',
+    border: '3px solid black', background: 'white',
+    fontSize: '1.5rem', fontWeight: 'bold', cursor: 'pointer',
+    boxShadow: '4px 4px 0px rgba(0,0,0,0.2)',
+    transition: 'transform 0.1s',
+    display: 'flex', justifyContent: 'center', alignItems: 'center'
   };
 
   return (
     <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'var(--bg-app)',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 1000
+      position:'fixed', inset:0, background:'#F3E5F5',
+      display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', zIndex:9999
     }}>
-      <div className="card" style={{width: '300px', textAlign: 'center', padding: '2rem'}}>
-        <div style={{marginBottom: '1rem', color: 'var(--primary)'}}>
-          <FaLock size={40} />
-        </div>
-        <h2 style={{marginBottom: '1.5rem'}}>Sécurité</h2>
-        <p style={{marginBottom: '1rem', color: 'var(--text-muted)'}}>Entrez votre code PIN</p>
+      <div style={{
+        background:'white', padding:'2rem', borderRadius:'30px',
+        border:'4px solid black', boxShadow:'8px 8px 0px black',
+        textAlign:'center', maxWidth:'350px'
+      }}>
+        <div style={{fontSize:'3rem', marginBottom:'1rem'}}>🔐</div>
+        <h2 style={{textTransform:'uppercase', margin:'0 0 1rem 0'}}>Accès Sécurisé</h2>
         
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          gap: '10px',
-          marginBottom: '2rem'
-        }}>
-          {[0, 1, 2, 3].map(i => (
-            <div key={i} style={{
-              width: '15px',
-              height: '15px',
-              borderRadius: '50%',
-              background: i < pin.length ? (error ? 'var(--danger)' : 'var(--primary)') : 'var(--border)',
-              transition: 'background 0.2s'
-            }} />
+        {/* POINTS DU PIN */}
+        <div style={{display:'flex', justifyContent:'center', gap:'15px', marginBottom:'2rem'}}>
+          {[0,1,2,3].map(i => (
+             <div key={i} style={{
+                width:'20px', height:'20px', borderRadius:'50%',
+                border:'2px solid black',
+                background: i < pin.length ? (error ? '#FF8A80' : '#6366f1') : 'white'
+             }} />
           ))}
         </div>
 
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: '15px'
-        }}>
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
-            <button 
-              key={num} 
-              className="btn btn-outline" 
-              style={{height: '50px', fontSize: '1.2rem', fontWeight: 'bold'}}
-              onClick={() => handleDigit(num)}
+        {/* CLAVIER */}
+        <div style={{display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:'15px', justifyContent:'center'}}>
+          {[1,2,3,4,5,6,7,8,9].map(n => (
+            <button key={n} style={btnStyle} onClick={() => handleDigit(n)} 
+              onMouseDown={e => e.currentTarget.style.transform='translate(2px,2px)'}
+              onMouseUp={e => e.currentTarget.style.transform='translate(0,0)'}
             >
-              {num}
+              {n}
             </button>
           ))}
-          <button 
-             className="btn btn-outline" 
-             style={{height: '50px', color:'var(--danger)', borderColor:'var(--danger)'}}
-             onClick={handleClear}
-          >
-             C
-          </button>
-          <button 
-             className="btn btn-outline" 
-             style={{height: '50px', fontSize: '1.2rem', fontWeight: 'bold'}}
-             onClick={() => handleDigit(0)}
-          >
-             0
-          </button>
-          <button 
-             className="btn btn-outline" 
-             style={{height: '50px'}}
-             onClick={handleBackspace}
-          >
-             <FaTimes />
-          </button>
+          <button style={{...btnStyle, background:'#FF8A80', color:'white'}} onClick={() => setPin("")}>C</button>
+          <button style={btnStyle} onClick={() => handleDigit(0)}>0</button>
+          <button style={{...btnStyle, background:'#E0E0E0'}} onClick={() => setPin(p => p.slice(0,-1))}>⬅️</button>
         </div>
       </div>
     </div>
