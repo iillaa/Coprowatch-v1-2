@@ -1,190 +1,156 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { db } from '../services/db';
 import { logic } from '../services/logic';
-import { format } from 'date-fns';
 
 export default function ExamForm({ worker, existingExam, onClose, onSave, deptName, workplaceName }) {
-  const [formData, setFormData] = useState({
-    exam_date: format(new Date(), 'yyyy-MM-dd'),
-    physician_name: 'Dr. Principal',
-    notes: '',
-    status: 'open',
-    // Lab
-    lab_result: null, // { result: 'negative'|'positive', parasite: '', date: '' }
-    // Treatment
-    treatment: null, // { drug: '', dose: '', duration: '', start_date: '', retest_date: '' }
-    // Decision
-    decision: null // { status: 'apte'|'inapte'|'apte_partielle', date: '' }
+  const [examDate, setExamDate] = useState(existingExam?.exam_date || new Date().toISOString().split('T')[0]);
+  const [physician, setPhysician] = useState(existingExam?.physician_name || "Dr Kibeche");
+  
+  // Labo
+  const [labResult, setLabResult] = useState(existingExam?.lab_result?.result || 'negative');
+  const [labDetails, setLabDetails] = useState(existingExam?.lab_result?.details || '');
+
+  // Décision
+  const [status, setStatus] = useState(existingExam?.decision?.status || 'apte');
+  const [duration, setDuration] = useState(existingExam?.decision?.duration_months || 6);
+  const [observation, setObservation] = useState(existingExam?.decision?.observation || '');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const examData = {
+      worker_id: worker.id,
+      exam_date: examDate,
+      physician_name: physician,
+      lab_result: { result: labResult, details: labDetails },
+      decision: { status, duration_months: parseInt(duration), observation }
+    };
+
+    if (existingExam) {
+      await db.updateExam(existingExam.id, examData);
+    } else {
+      await db.addExam(examData);
+      // Recalculer la prochaine date pour le travailleur
+      const nextDate = logic.calculateNextDueDate(examDate, parseInt(duration));
+      await db.updateWorker(worker.id, { 
+        last_exam_date: examDate,
+        next_exam_due: nextDate
+      });
+    }
+    onSave();
+  };
+
+  // Styles identiques
+  const overlayStyle = {
+    position: 'fixed', inset: 0,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    backdropFilter: 'blur(5px)',
+    display: 'flex', justifyContent: 'center', alignItems: 'center',
+    zIndex: 1100
+  };
+
+  const modalStyle = {
+    background: 'white',
+    border: '4px solid black',
+    borderRadius: '20px',
+    padding: '1.5rem',
+    width: '95%', maxWidth: '600px',
+    boxShadow: '10px 10px 0px #6366f1', /* Ombre violette */
+    maxHeight: '95vh', overflowY: 'auto'
+  };
+
+  const inputStyle = {
+    width: '100%', padding: '0.8rem',
+    border: '3px solid black', borderRadius: '12px',
+    fontSize: '1rem', fontWeight: '600', marginBottom:'1rem', boxSizing: 'border-box'
+  };
+
+  const bigRadioStyle = (isSelected, color) => ({
+    flex: 1, padding: '1rem', textAlign: 'center',
+    border: '3px solid black', borderRadius: '12px',
+    background: isSelected ? color : 'white',
+    fontWeight: '800', cursor: 'pointer',
+    transform: isSelected ? 'translate(2px, 2px)' : 'none',
+    boxShadow: isSelected ? 'none' : '4px 4px 0px rgba(0,0,0,0.1)',
+    transition: 'all 0.1s'
   });
 
-  useEffect(() => {
-    if (existingExam) {
-      setFormData(existingExam);
-    }
-  }, [existingExam]);
-
-  const updateField = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleLabResult = (result) => {
-    const labData = {
-      result, // 'positive' or 'negative'
-      date: formData.exam_date, // Use the exam date selected by user (allows back-dating)
-      parasite: result === 'positive' ? 'Parasite X' : ''
-    };
-    updateField('lab_result', labData);
-  };
-
-  const handleDecision = async (status) => {
-    // 1. Save Decision
-    // Use the exam date for the decision date too, to keep history consistent
-    const decision = { status, date: formData.exam_date };
-    const newExamData = { ...formData, decision, status: 'closed' };
-    
-    await db.saveExam({ ...newExamData, worker_id: worker.id });
-
-    // 2. Recalculate Worker Status based on full history
-    const allExams = await db.getExams();
-    const workerExams = allExams.filter(e => e.worker_id === worker.id);
-    const statusUpdate = logic.recalculateWorkerStatus(workerExams);
-    
-    await db.saveWorker({ ...worker, ...statusUpdate });
-    
-    onSave();
-  };
-
-  const saveWithoutDecision = async () => {
-    await db.saveExam({ ...formData, worker_id: worker.id });
-    
-    // Recalculate status (e.g. update last_exam_date if this is the newest)
-    const allExams = await db.getExams();
-    const workerExams = allExams.filter(e => e.worker_id === worker.id);
-    const statusUpdate = logic.recalculateWorkerStatus(workerExams);
-    
-    await db.saveWorker({ ...worker, ...statusUpdate });
-
-    onSave();
-  };
-
-  // Render Helpers
-  const isPositive = formData.lab_result?.result === 'positive';
-  const isNegative = formData.lab_result?.result === 'negative';
-
   return (
-    <div className="modal-overlay">
-      <div className="modal">
-        <h3 style={{marginTop:0, marginBottom:'0.5rem'}}>Examen Médical - {worker.full_name}</h3>
-        <p style={{color:'var(--text-muted)', fontSize:'0.9rem', marginBottom:'1.5rem'}}>
-             <strong>Service:</strong> {deptName || '-'} • <strong>Lieu:</strong> {workplaceName || '-'} • <strong>Poste:</strong> {worker.job_role || '-'}
-        </p>
+    <div style={overlayStyle}>
+      <div style={modalStyle}>
+        <h2 style={{marginTop:0, borderBottom:'3px solid black', paddingBottom:'0.5rem'}}>
+          🩺 Examen Médical
+        </h2>
         
-        {/* Basic Info */}
-        <div className="card" style={{background:'#f9fafb'}}>
-            <div className="form-group">
-                <label className="label">Date de l'examen</label>
-                <div style={{display:'flex', alignItems:'center', gap:'1rem'}}>
-                   <input type="date" className="input" value={formData.exam_date} onChange={e => updateField('exam_date', e.target.value)} />
-                   {new Date(formData.exam_date) < new Date(new Date().setHours(0,0,0,0)) && (
-                      <span className="badge badge-yellow">⚠️ Mode Historique</span>
-                   )}
-                </div>
-            </div>
-            <div className="form-group">
-                <label className="label">Médecin</label>
-                <input className="input" value={formData.physician_name} onChange={e => updateField('physician_name', e.target.value)} />
-            </div>
-            <div className="form-group">
-                <label className="label">Examen clinique</label>
-                <textarea className="input" rows="2" value={formData.notes} onChange={e => updateField('notes', e.target.value)} />
-            </div>
+        <div style={{background:'#E3F2FD', padding:'0.5rem', borderRadius:'8px', border:'2px dashed black', marginBottom:'1rem'}}>
+           <strong>Patient:</strong> {worker.full_name} <br/>
+           <small>{deptName} • {workplaceName}</small>
         </div>
 
-        {/* Lab Section */}
-        <div className="card" style={{borderLeft: '4px solid #3b82f6'}}>
-            <h4>Laboratoire (Copro-parasitologie)</h4>
-            {!formData.lab_result ? (
-                <div style={{display:'flex', gap:'1rem'}}>
-                    <button className="btn btn-success" onClick={() => handleLabResult('negative')}>Résultat Négatif (-)</button>
-                    <button className="btn btn-danger" onClick={() => handleLabResult('positive')}>Résultat Positif (+)</button>
-                </div>
-            ) : (
-                <div>
-                    <div style={{display:'flex', justifyContent:'space-between', marginBottom:'1rem'}}>
-                        <span className={`badge ${formData.lab_result.result === 'positive' ? 'badge-red' : 'badge-green'}`}>
-                            Résultat: {formData.lab_result.result.toUpperCase()}
-                        </span>
-                        <button className="btn btn-sm btn-outline" onClick={() => updateField('lab_result', null)}>Modifier</button>
-                    </div>
-                    {isPositive && (
-                        <div className="form-group">
-                            <label className="label">Type de Parasite</label>
-                            <input className="input" value={formData.lab_result.parasite} 
-                                   onChange={e => updateField('lab_result', {...formData.lab_result, parasite: e.target.value})} />
-                        </div>
-                    )}
-                </div>
-            )}
-        </div>
-
-        {/* Treatment / Decision Section */}
-        {isPositive && (
-            <div className="card" style={{borderLeft: '4px solid #ef4444'}}>
-                <h4>Traitement & Suivi</h4>
-                <div className="form-group">
-                    <label className="label">Médicament & Dose</label>
-                    <input className="input" placeholder="Ex: Flagyl 500mg" 
-                           value={formData.treatment?.drug || ''} 
-                           onChange={e => updateField('treatment', {...(formData.treatment||{}), drug: e.target.value})} />
-                </div>
-                <div className="form-group">
-                    <label className="label">Date Début Traitement</label>
-                    <input type="date" className="input" 
-                           value={formData.treatment?.start_date || format(new Date(), 'yyyy-MM-dd')}
-                           onChange={e => updateField('treatment', {...(formData.treatment||{}), start_date: e.target.value})} />
-                </div>
-                <div className="form-group">
-                    <label className="label">Contre-visite prévue le:</label>
-                    <div style={{display:'flex', gap:'0.5rem'}}>
-                       <button className="btn btn-outline btn-sm" type="button" 
-                         onClick={() => {
-                            const start = formData.treatment?.start_date || format(new Date(), 'yyyy-MM-dd');
-                            const date = logic.calculateRetestDate(start, 7);
-                            updateField('treatment', {...(formData.treatment||{}), start_date: start, retest_date: date});
-                         }}>+7 Jours</button>
-                       <button className="btn btn-outline btn-sm" type="button"
-                         onClick={() => {
-                            const start = formData.treatment?.start_date || format(new Date(), 'yyyy-MM-dd');
-                            const date = logic.calculateRetestDate(start, 10);
-                            updateField('treatment', {...(formData.treatment||{}), start_date: start, retest_date: date});
-                         }}>+10 Jours</button>
-                       <input type="date" className="input" style={{width:'auto'}}
-                              value={formData.treatment?.retest_date || ''} 
-                              onChange={e => updateField('treatment', {...(formData.treatment||{}), retest_date: e.target.value})} />
-                    </div>
-                </div>
-
-                <div style={{marginTop:'1rem', display:'flex', gap:'1rem'}}>
-                    <button className="btn btn-danger" onClick={() => handleDecision('inapte')}>Marquer Inapte Temporaire</button>
-                    <button className="btn btn-warning" onClick={() => handleDecision('apte_partielle')}>Apte Partiel (Sous réserve)</button>
-                </div>
-            </div>
-        )}
-
-        {isNegative && (
-             <div className="card" style={{borderLeft: '4px solid #22c55e'}}>
-                 <h4>Décision Finale</h4>
-                 <p>Le résultat est négatif. Le travailleur peut être déclaré apte.</p>
-                 <div style={{display:'flex', gap:'1rem'}}>
-                    <button className="btn btn-success" onClick={() => handleDecision('apte')}>Déclarer APTE & Sauvegarder</button>
-                 </div>
+        <form onSubmit={handleSubmit}>
+          
+          <div style={{display:'flex', gap:'1rem'}}>
+             <div style={{flex:1}}>
+                <label style={{fontWeight:'bold'}}>Date</label>
+                <input type="date" value={examDate} onChange={e => setExamDate(e.target.value)} style={inputStyle} />
              </div>
-        )}
+             <div style={{flex:1}}>
+                <label style={{fontWeight:'bold'}}>Médecin</label>
+                <input value={physician} onChange={e => setPhysician(e.target.value)} style={inputStyle} />
+             </div>
+          </div>
 
-        <div style={{display:'flex', justifyContent:'flex-end', marginTop:'1rem', gap:'1rem'}}>
-            <button className="btn btn-outline" onClick={onClose}>Fermer</button>
-            <button className="btn btn-primary" onClick={saveWithoutDecision}>Sauvegarder (Sans clôturer)</button>
-        </div>
+          {/* Section Résultat Labo */}
+          <div style={{marginBottom:'1rem'}}>
+            <label style={{fontWeight:'bold', display:'block', marginBottom:'0.5rem'}}>🧪 RÉSULTAT ANALYSES</label>
+            <div style={{display:'flex', gap:'10px'}}>
+               <div onClick={() => setLabResult('negative')} style={bigRadioStyle(labResult === 'negative', '#69F0AE')}>
+                  NÉGATIF (OK) 👍
+               </div>
+               <div onClick={() => setLabResult('positive')} style={bigRadioStyle(labResult === 'positive', '#FF8A80')}>
+                  POSITIF 🦠
+               </div>
+            </div>
+          </div>
+
+          {/* Section Aptitude */}
+          <div style={{marginBottom:'1rem'}}>
+            <label style={{fontWeight:'bold', display:'block', marginBottom:'0.5rem'}}>⚖️ DÉCISION & APTITUDE</label>
+            <div style={{display:'flex', gap:'5px', marginBottom:'1rem'}}>
+               <div onClick={() => setStatus('apte')} style={bigRadioStyle(status === 'apte', '#69F0AE')}>
+                  APTE
+               </div>
+               <div onClick={() => setStatus('apte_partielle')} style={bigRadioStyle(status === 'apte_partielle', '#FFF176')}>
+                  RESTREINT
+               </div>
+               <div onClick={() => setStatus('inapte')} style={bigRadioStyle(status === 'inapte', '#FF8A80')}>
+                  INAPTE
+               </div>
+            </div>
+
+            <label style={{fontWeight:'bold'}}>Validité (Mois)</label>
+            <select value={duration} onChange={e => setDuration(e.target.value)} style={inputStyle}>
+                <option value="3">3 Mois (Suivi court)</option>
+                <option value="6">6 Mois (Standard)</option>
+                <option value="12">12 Mois (Annuel)</option>
+                <option value="24">24 Mois (Biennal)</option>
+            </select>
+          </div>
+
+          <div>
+             <label style={{fontWeight:'bold'}}>Observations / Ordonnance</label>
+             <textarea value={observation} onChange={e => setObservation(e.target.value)} rows="3" style={{...inputStyle, fontFamily:'inherit'}} placeholder="Remarques..." />
+          </div>
+
+          <div style={{display:'flex', gap:'1rem', marginTop:'1.5rem'}}>
+            <button type="button" onClick={onClose} className="btn-yellow-action" style={{background:'white', flex:1, justifyContent:'center'}}>
+              ANNULER
+            </button>
+            <button type="submit" className="btn-yellow-action" style={{background:'var(--primary)', color:'white', flex:1, justifyContent:'center'}}>
+              VALIDER L'EXAMEN
+            </button>
+          </div>
+
+        </form>
       </div>
     </div>
   );
