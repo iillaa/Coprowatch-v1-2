@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { db } from '../services/db';
 import { logic } from '../services/logic';
-import { FaChevronRight, FaClipboardList, FaExclamationTriangle, FaMicroscope } from 'react-icons/fa';
+// On n'utilise plus les icônes FontAwesome classiques pour les grosses illustrations, 
+// mais des emojis ou des images pour coller au style "cartoon"
+import { FaChevronRight } from 'react-icons/fa';
 
 export default function Dashboard({ onNavigateWorker }) {
   const [stats, setStats] = useState(null);
@@ -16,171 +18,142 @@ export default function Dashboard({ onNavigateWorker }) {
     setLoading(false);
   };
 
-  useEffect(() => {
-    loadStats();
-  }, []);
+  useEffect(() => { loadStats(); }, []);
 
+  if (loading) return <div>Chargement...</div>;
 
-  if (loading) return (
-    <div style={{
-      display: 'flex', 
-      flexDirection: 'column', 
-      justifyContent: 'center', 
-      alignItems: 'center', 
-      height: '60vh',
-      gap: '1rem'
-    }}>
-      <div className="loading-spinner"></div>
-      <div style={{color: 'var(--text-muted)', fontWeight: 600}}>Chargement des données...</div>
-      <div style={{
-        width: '200px',
-        height: '4px',
-        backgroundColor: 'var(--bg-app)',
-        borderRadius: '2px',
-        overflow: 'hidden'
-      }}>
-        <div style={{
-          width: '100%',
-          height: '100%',
-          backgroundColor: 'var(--primary)',
-          animation: 'shimmer 1.5s infinite'
-        }}></div>
-      </div>
-    </div>
-  );
+  // Fonction utilitaire pour générer un avatar aléatoire stable basé sur le nom
+  const getAvatarUrl = (name) => `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}&backgroundColor=b6e3f4`;
 
   return (
     <div>
-      <header style={{marginBottom: '2rem'}}>
-        <h2>Tableau de bord</h2>
-        <p>Aperçu de la situation médicale.</p>
+      <header>
+        <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+          <h2>Tableau de bord</h2>
+          <span style={{fontSize:'1.5rem'}}>⭐</span>
+        </div>
+        <p className="subtitle">Aperçu de la situation médicale.</p>
       </header>
       
-      <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem', marginBottom: '2.5rem'}}>
-        {/* Due Soon - Orange/Yellow */}
-        <div className="card" style={{display:'flex', justifyContent:'space-between', alignItems:'center', background:'var(--warning-light)', padding: '1.5rem'}}>
-          <div>
-            <h3 className="stat-card-title" style={{color:'var(--warning-text)'}}>À faire (15 jours)</h3>
-            <div className="stat-card-value" style={{color:'var(--warning)'}}>{stats.dueSoon.length}</div>
-            <p style={{margin:0, fontWeight:600, color:'var(--warning-text)'}}>Travailleurs</p>
+      {/* GRID DES 3 CARTES COLOREES */}
+      <div className="dashboard-grid">
+        {/* CARTE JAUNE */}
+        <div className="stat-card card-yellow">
+          <div className="stat-content">
+            <div className="stat-title">À FAIRE</div>
+            <div className="stat-number">{stats.dueSoon.length}</div>
+            {/* Formes décoratives en fond */}
+            <div style={{fontSize:'1.5rem'}}>🟡 🔺</div>
           </div>
-          <div style={{opacity: 0.8}}>
-             <FaClipboardList size={60} color="var(--warning)" />
-          </div>
+          {/* REMPLACEZ PAR VOTRE IMAGE "GLOBULE ROUGE" */}
+          <div className="stat-illustration">🩸</div> 
         </div>
         
-        {/* Overdue - Red */}
-        <div className="card" style={{display:'flex', justifyContent:'space-between', alignItems:'center', background:'var(--danger-light)', padding: '1.5rem'}}>
-          <div>
-            <h3 className="stat-card-title" style={{color:'var(--danger-text)'}}>En Retard</h3>
-            <div className="stat-card-value" style={{color:'var(--danger)'}}>{stats.overdue.length}</div>
-            <p style={{margin:0, fontWeight:600, color:'var(--danger-text)'}}>Travailleurs</p>
+        {/* CARTE ROUGE */}
+        <div className="stat-card card-red">
+          <div className="stat-content">
+            <div className="stat-title">EN RETARD</div>
+            <div className="stat-number">{stats.overdue.length}</div>
+            <div style={{fontSize:'1.5rem'}}>⚡ ❗</div>
           </div>
-          <div style={{opacity: 0.8}}>
-             <FaExclamationTriangle size={60} color="var(--danger)" />
-          </div>
+          {/* REMPLACEZ PAR VOTRE IMAGE "VIRUS VERT" */}
+          <div className="stat-illustration">🦠</div>
         </div>
 
-        {/* Positive Cases - Blue/Teal */}
-        <div className="card" style={{display:'flex', justifyContent:'space-between', alignItems:'center', background:'var(--primary-light)', padding: '1.5rem'}}>
-          <div>
-            <h3 className="stat-card-title" style={{color:'var(--primary)'}}>Suivi Médical</h3>
-            <div className="stat-card-value" style={{color:'var(--primary)'}}>{stats.activePositive.length}</div>
-            <p style={{margin:0, fontWeight:600, color:'var(--primary)'}}>Cas actifs</p>
+        {/* CARTE BLEUE */}
+        <div className="stat-card card-blue">
+          <div className="stat-content">
+            <div className="stat-title">SUIVI MÉDICAL</div>
+            <div className="stat-number">{stats.activePositive.length}</div>
           </div>
-          <div style={{opacity: 0.8}}>
-             <FaMicroscope size={60} color="var(--primary)" />
-          </div>
+          {/* REMPLACEZ PAR VOTRE IMAGE "NEURONE/DOCTEUR" */}
+          <div className="stat-illustration">🔬</div>
         </div>
       </div>
 
-      <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '1.5rem'}}>
-        {/* Urgent List */}
-        <div className="card" style={{padding:0, overflow:'hidden'}}>
-          <div style={{padding:'1.5rem', borderBottom:'var(--border-width) solid var(--border-color)', background:'white'}}>
-            <h3 style={{marginBottom:0}}>Examens à prévoir</h3>
+      {/* SECTION DES LISTES */}
+      <div className="lists-grid">
+        
+        {/* Examens à prévoir */}
+        <div className="list-card">
+          <div className="list-header">
+            <h3>Examens à prévoir</h3>
           </div>
-          
-          {stats.dueSoon.length === 0 && stats.overdue.length === 0 ? (
-            <div style={{padding:'2rem', textAlign:'center', color:'var(--text-muted)'}}>Rien à signaler.</div>
-          ) : (
-            <div className="table-container" style={{border:'none', boxShadow:'none', borderRadius:0}}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Nom</th>
-                    <th>Date Prévue</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-
-                  {stats.overdue.map(w => (
-                    <tr key={w.id} className="overdue-worker-row">
-                      <td>
-                        <div style={{fontWeight:700}}>{w.full_name}</div>
-                        <span className="badge badge-red" style={{marginTop:'0.25rem'}}>En Retard</span>
-                      </td>
-                      <td>{w.next_exam_due}</td>
-                      <td style={{textAlign:'right'}}>
-                        <button className="btn btn-sm btn-outline" onClick={() => onNavigateWorker(w.id)}>
-                           Voir <FaChevronRight size={10} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {stats.dueSoon.map(w => (
-                    <tr key={w.id}>
-                      <td style={{fontWeight:600}}>{w.full_name}</td>
-                      <td>{w.next_exam_due}</td>
-                      <td style={{textAlign:'right'}}>
-                        <button className="btn btn-sm btn-outline" onClick={() => onNavigateWorker(w.id)}>
-                           Voir <FaChevronRight size={10} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <table>
+            <thead>
+              <tr>
+                <th>NOM</th>
+                <th>DATE PRÉVUE</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {/* Combine overdue and dueSoon for the list */}
+              {[...stats.overdue, ...stats.dueSoon].slice(0, 5).map(w => (
+                <tr key={w.id}>
+                  <td>
+                    <div className="worker-info">
+                      <img src={getAvatarUrl(w.full_name)} alt="avatar" className="avatar" />
+                      <div>
+                        <div style={{fontWeight:'700'}}>{w.full_name}</div>
+                        {stats.overdue.find(o => o.id === w.id) && (
+                          <span className="status-pill">EN RETARD</span>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{fontWeight:'600'}}>{w.next_exam_due}</td>
+                  <td style={{textAlign:'right'}}>
+                    <button className="btn-yellow-action" onClick={() => onNavigateWorker(w.id)}>
+                      VOIR <FaChevronRight size={10} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {[...stats.overdue, ...stats.dueSoon].length === 0 && (
+                 <tr><td colSpan="3" style={{textAlign:'center', color:'#888'}}>Aucun examen prévu</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
 
-        {/* Re-tests */}
-        <div className="card" style={{padding:0, overflow:'hidden'}}>
-          <div style={{padding:'1.5rem', borderBottom:'var(--border-width) solid var(--border-color)', background:'white'}}>
-             <h3 style={{marginBottom:0}}>Contre-visites</h3>
+        {/* Contre-visites */}
+        <div className="list-card">
+          <div className="list-header">
+            <h3>Contre-visites</h3>
           </div>
-          
-          {stats.retests.length === 0 ? (
-             <div style={{padding:'2rem', textAlign:'center', color:'var(--text-muted)'}}>Aucune contre-visite prévue.</div>
-          ) : (
-            <div className="table-container" style={{border:'none', boxShadow:'none', borderRadius:0}}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Nom</th>
-                    <th>Date Prévue</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {stats.retests.map(item => (
-                    <tr key={item.worker.id}>
-                      <td style={{fontWeight:600}}>{item.worker.full_name}</td>
-                      <td>{logic.formatDate(new Date(item.date))}</td>
-                      <td style={{textAlign:'right'}}>
-                        <button className="btn btn-sm btn-outline" onClick={() => onNavigateWorker(item.worker.id)}>
-                           Ouvrir <FaChevronRight size={10} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <table>
+            <thead>
+              <tr>
+                <th>NOM</th>
+                <th>DATE PRÉVUE</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.retests.slice(0, 5).map(item => (
+                <tr key={item.worker.id}>
+                  <td>
+                    <div className="worker-info">
+                      <img src={getAvatarUrl(item.worker.full_name)} alt="avatar" className="avatar" />
+                      <div style={{fontWeight:'700'}}>{item.worker.full_name}</div>
+                    </div>
+                  </td>
+                  <td style={{fontWeight:'600'}}>{logic.formatDate(new Date(item.date))}</td>
+                  <td style={{textAlign:'right'}}>
+                    <button className="btn-yellow-action" onClick={() => onNavigateWorker(item.worker.id)}>
+                      OUVRIR <FaChevronRight size={10} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+               {stats.retests.length === 0 && (
+                 <tr><td colSpan="3" style={{textAlign:'center', color:'#888'}}>Aucune contre-visite</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
+
       </div>
     </div>
   );
