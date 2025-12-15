@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && ./copy_to_sd.sh",
+    "build": "vite build &&",
     "build:file": "npm run build && node scripts/make-singlefile.js dist",
     "lint": "eslint . --ext .js,.jsx",
     "lint:fix": "eslint . --ext .js,.jsx --fix",
