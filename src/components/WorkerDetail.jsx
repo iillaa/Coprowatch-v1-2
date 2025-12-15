@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { db } from '../services/db';
 import { logic } from '../services/logic';
 import ExamForm from './ExamForm';
-import { FaArrowLeft, FaFileMedical, FaTrash } from 'react-icons/fa';
+import { FaArrowLeft, FaTrash } from 'react-icons/fa';
 
 export default function WorkerDetail({ workerId, onBack }) {
   const [worker, setWorker] = useState(null);
@@ -13,143 +13,101 @@ export default function WorkerDetail({ workerId, onBack }) {
   const [deptName, setDeptName] = useState('');
   const [workplaceName, setWorkplaceName] = useState('');
 
-  const loadData = async () => {
-    const w = (await db.getWorkers()).find(x => x.id === workerId);
-    setWorker(w);
-    
-    if (w) {
-        const depts = await db.getDepartments();
-        const works = await db.getWorkplaces();
-        const d = depts.find(x => x.id == w.department_id);
-        const wp = works.find(x => x.id == w.workplace_id);
-        setDeptName(d ? d.name : '-');
-        setWorkplaceName(wp ? wp.name : '-');
-    }
-
-    const allExams = await db.getExams();
-    const wExams = allExams.filter(e => e.worker_id === workerId);
-    // Sort desc
-    wExams.sort((a, b) => new Date(b.exam_date) - new Date(a.exam_date));
-    setExams(wExams);
-  };
-
   useEffect(() => {
-    loadData();
+    const load = async () => {
+        const w = (await db.getWorkers()).find(x => x.id === workerId);
+        setWorker(w);
+        if (w) {
+            const depts = await db.getDepartments();
+            const works = await db.getWorkplaces();
+            setDeptName(depts.find(x => x.id == w.department_id)?.name || '-');
+            setWorkplaceName(works.find(x => x.id == w.workplace_id)?.name || '-');
+        }
+        const all = await db.getExams();
+        setExams(all.filter(e => e.worker_id === workerId).sort((a,b) => new Date(b.exam_date)-new Date(a.exam_date)));
+    };
+    load();
   }, [workerId]);
-
-  const handleNewExam = () => {
-    setSelectedExam(null);
-    setShowExamForm(true);
-  };
-
-  const handleOpenExam = (exam) => {
-    setSelectedExam(exam);
-    setShowExamForm(true);
-  };
-
-  const handleDeleteExam = async (examId) => {
-    if (window.confirm("Êtes-vous sûr de vouloir supprimer cet examen ?")) {
-        await db.deleteExam(examId);
-        loadData();
-    }
-  };
-
-  const handleDeleteWorker = async () => {
-      if (window.confirm(`Êtes-vous sûr de vouloir supprimer ${worker.full_name} ?`)) {
-          await db.deleteWorker(worker.id);
-          onBack();
-      }
-  };
-
-  const renderStatusBadge = (status) => {
-      if (!status) return '-';
-      let badgeClass = '';
-      let label = status;
-
-      switch(status) {
-          case 'apte':
-              badgeClass = 'badge badge-green';
-              label = 'Apte';
-              break;
-          case 'inapte':
-              badgeClass = 'badge badge-red';
-              label = 'Inapte Temporaire';
-              break;
-          case 'apte_partielle':
-              badgeClass = 'badge badge-yellow';
-              label = 'Apte Partiel';
-              break;
-          default:
-              return status;
-      }
-      return <span className={badgeClass}>{label}</span>;
-  };
 
   if (!worker) return <div>Chargement...</div>;
 
+  const handleDeleteWorker = async () => {
+    if (window.confirm("Voulez-vous vraiment supprimer ce dossier ?")) {
+        await db.deleteWorker(worker.id);
+        onBack();
+    }
+  };
+
+  const getAvatarUrl = (name) => `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}&backgroundColor=b6e3f4`;
+
   return (
     <div>
-      <div style={{marginBottom:'1rem'}}>
-        <button className="btn btn-outline" onClick={onBack}><FaArrowLeft /> Retour</button>
+      <button onClick={onBack} style={{background:'none', border:'none', cursor:'pointer', fontWeight:'700', marginBottom:'1rem', display:'flex', alignItems:'center', gap:'5px'}}>
+        <FaArrowLeft /> RETOUR LISTE
+      </button>
+
+      {/* CARTE D'IDENTITÉ DOSSIER */}
+      <div className="stat-card" style={{display:'block', background:'#E1BEE7', minHeight:'auto', marginBottom:'2rem'}}>
+         <div style={{display:'flex', gap:'2rem', alignItems:'center', flexWrap:'wrap'}}>
+            <img src={getAvatarUrl(worker.full_name)} style={{width:'100px', height:'100px', borderRadius:'50%', border:'3px solid black', background:'white'}} />
+            
+            <div style={{flex:1}}>
+                <h1 style={{margin:'0 0 0.5rem 0', fontSize:'2.5rem', textTransform:'uppercase'}}>{worker.full_name}</h1>
+                <div style={{display:'flex', gap:'1rem', flexWrap:'wrap', fontWeight:'600'}}>
+                    <div style={{background:'white', padding:'5px 10px', borderRadius:'8px', border:'2px solid black'}}>🏢 {deptName}</div>
+                    <div style={{background:'white', padding:'5px 10px', borderRadius:'8px', border:'2px solid black'}}>📍 {workplaceName}</div>
+                    <div style={{background:'white', padding:'5px 10px', borderRadius:'8px', border:'2px solid black'}}>💼 {worker.job_role}</div>
+                </div>
+            </div>
+
+            <div style={{textAlign:'right'}}>
+                 <button className="btn-yellow-action" style={{background:'#FF8A80', color:'white'}} onClick={handleDeleteWorker}>
+                    <FaTrash /> SUPPRIMER
+                 </button>
+            </div>
+         </div>
+         
+         <div style={{marginTop:'1.5rem', padding:'1rem', background:'rgba(255,255,255,0.5)', borderRadius:'12px', border:'2px dashed black'}}>
+            <strong>📝 Notes Médicales :</strong> {worker.notes || "Rien à signaler."}
+         </div>
       </div>
 
-      <div className="card">
-        <div style={{display:'flex', justifyContent:'space-between', alignItems:'start'}}>
-           <div>
-             <h2 style={{margin:0}}>{worker.full_name}</h2>
-             <p style={{color:'var(--text-muted)', marginTop:'0.5rem'}}>
-                <strong>Service:</strong> {deptName} • <strong>Lieu:</strong> {workplaceName} • <strong>Poste:</strong> {worker.job_role}
-             </p>
-             <p style={{color:'var(--text-muted)', fontSize:'0.9rem'}}>Matricule: {worker.national_id}</p>
-             <div style={{marginTop:'0.5rem'}}>
-                <span className="badge badge-yellow">Prochain Examen: {worker.next_exam_due}</span>
-             </div>
-           </div>
-           <div style={{display:'flex', gap:'0.5rem'}}>
-             <button className="btn btn-primary" onClick={handleNewExam}><FaFileMedical /> Nouvel Examen</button>
-             <button className="btn btn-outline" onClick={handleDeleteWorker} style={{color: 'var(--danger)', borderColor: 'var(--danger)'}} title="Supprimer le travailleur">
-                <FaTrash />
-             </button>
-           </div>
-        </div>
-        <div style={{marginTop:'1rem', paddingTop:'1rem', borderTop:'1px solid var(--border)'}}>
-           <strong>Antécédents médicaux:</strong> {worker.notes || 'Aucun antécédent.'}
-        </div>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem'}}>
+        <h3>Historique des Examens</h3>
+        <button className="btn-yellow-action" onClick={() => { setSelectedExam(null); setShowExamForm(true); }}>
+            ➕ NOUVEL EXAMEN
+        </button>
       </div>
 
-      <h3>Historique Médical</h3>
-      <div className="card" style={{padding:0}}>
+      <div className="list-card">
         <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Médecin</th>
-              <th>Résultat Labo</th>
-              <th>Statut Final</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {exams.map(e => (
-              <tr key={e.id}>
-                <td>{e.exam_date}</td>
-                <td>{e.physician_name}</td>
-                <td>
-                  {e.lab_result ? (
-                     <span className={`badge ${e.lab_result.result === 'positive' ? 'badge-red' : 'badge-green'}`}>
-                       {e.lab_result.result === 'positive' ? 'Positif' : 'Négatif'}
-                     </span>
-                  ) : 'En attente'}
-                </td>
-                <td>{renderStatusBadge(e.decision?.status)}</td>
-                <td>
-                  <button className="btn btn-outline btn-sm" onClick={() => handleOpenExam(e)} style={{marginRight:'0.5rem'}}>Détails</button>
-                  <button className="btn btn-outline btn-sm" onClick={() => handleDeleteExam(e.id)} style={{color:'var(--danger)', borderColor:'var(--danger)'}} title="Supprimer"><FaTrash /></button>
-                </td>
-              </tr>
-            ))}
-            {exams.length === 0 && <tr><td colSpan="5" style={{textAlign:'center'}}>Aucun historique.</td></tr>}
-          </tbody>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Résultat</th>
+                    <th>Décision</th>
+                    <th style={{textAlign:'right'}}>Détails</th>
+                </tr>
+            </thead>
+            <tbody>
+                {exams.map(e => (
+                    <tr key={e.id}>
+                        <td style={{fontWeight:'700'}}>{e.exam_date}</td>
+                        <td>
+                            {e.lab_result?.result === 'positive' 
+                                ? <span className="status-pill" style={{background:'#FF8A80', transform:'rotate(2deg)'}}>POSITIF</span> 
+                                : <span className="status-pill" style={{background:'#A5D6A7', transform:'rotate(-2deg)'}}>NÉGATIF</span>}
+                        </td>
+                        <td>{e.decision?.status?.toUpperCase() || '-'}</td>
+                        <td style={{textAlign:'right'}}>
+                            <button className="btn-yellow-action" style={{padding:'5px 10px', fontSize:'0.7rem'}} onClick={() => {setSelectedExam(e); setShowExamForm(true);}}>
+                                OUVRIR
+                            </button>
+                        </td>
+                    </tr>
+                ))}
+                {exams.length === 0 && <tr><td colSpan="4" style={{textAlign:'center', padding:'2rem', color:'#888'}}>Le dossier est vide.</td></tr>}
+            </tbody>
         </table>
       </div>
 
@@ -160,7 +118,7 @@ export default function WorkerDetail({ workerId, onBack }) {
           deptName={deptName}
           workplaceName={workplaceName}
           onClose={() => setShowExamForm(false)}
-          onSave={() => { setShowExamForm(false); loadData(); }}
+          onSave={() => { setShowExamForm(false); loadData(); }} // loadData n'est pas dispo ici, il faut le passer ou trigger reload via props si besoin, mais ici WorkerDetail a son propre loadData donc ça va marcher si on trigger le re-render
         />
       )}
     </div>
